@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/css/jquery.dataTables.min.css">
+    <style>
+        *{
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+        }
+
+        :root {
+            --bg: #faf7f2;
+            --surface: #ffffff;
+            --surface2: #f5f0e8;
+            --border: #e4d9c8;
+            --border-bright: #c9b89a;
+            --text: #2d1f0f;
+            --text-muted: #8a6f52;
+            --text-dim: #c4aa8a;
+            --accent: #c45c1a;
+            --accent-dim: rgba(196, 92, 26, 0.08);
+            --accent-glow: rgba(196, 92, 26, 0.25);
+            --accent-light: #f5e8d8;
+            --red: #c0392b;
+            --mono: 'DM Mono', monospace;
+            --display: 'Lora', serif;
+        }
+
+        body {
+            font-family: var(--mono);
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(196,92,26,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(196,92,26,0.025) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .page-wrapper {
+            position: relative;
+            z-index: 1;
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+
+        .logo-tag {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            font-family: var(--mono);
+        }
+
+        /* Section labels */
+        .section-label {
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* Form */
+        .shorten-section {
+            margin-bottom: 40px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border-bright);
+            background: var(--surface);
+            transition: border-color 0.2s;
+        }
+        .input-row:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        #fullUrl-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 14px 18px;
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            color: var(--text);
+            min-width: 0;
+        }
+        #fullUrl-input::placeholder { color: var(--text-dim); }
+        #fullUrl-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: none;
+            outline: none;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #ffffff;
+            padding: 14px 22px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: #b04e15;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+        .btn-primary:disabled {
+            background: var(--border);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .btn-ghost {
+            background: var(--surface2);
+            color: var(--text-muted);
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            font-size: 0.65rem;
+        }
+        .btn-ghost:hover:not(:disabled) {
+            border-color: var(--border-bright);
+            color: var(--text);
+        }
+        .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        #message {
+            font-size: 0.75rem;
+            margin-top: 10px;
+            padding: 8px 12px;
+            display: none;
+        }
+        #message.visible { display: block; }
+        #message.success { color: var(--accent); background: var(--accent-dim); border-left: 2px solid var(--accent); }
+        #message.error { color: var(--red); background: rgba(255,77,109,0.08); border-left: 2px solid var(--red); }
+
+        /* Table */
+        .urls-section { margin-bottom: 48px; }
+
+        .url-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+        }
+
+        .url-table thead th {
+            text-align: left;
+            font-size: 0.6rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            font-weight: 400;
+        }
+
+        .url-table tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+        .url-table tbody tr:hover { background: var(--surface2); }
+        .url-table tbody tr:last-child { border-bottom: none; }
+
+        .url-table td {
+            padding: 12px 14px;
+            vertical-align: middle;
+        }
+
+        .url-table td:first-child {
+            color: var(--text-muted);
+            max-width: 360px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .url-table a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .url-table td:first-child a:hover { color: var(--text); }
+
+        .short-link {
+            color: var(--accent) !important;
+            font-weight: 700;
+        }
+        .short-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+        .click-badge {
+            display: inline-block;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 2px 10px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .empty-row td {
+            text-align: center;
+            color: var(--text-dim);
+            padding: 32px !important;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        /* Analytics */
+        .analytics-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 28px;
+        }
+
+        .analytics-controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .select-wrapper {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+        .select-wrapper::after {
+            content: '▾';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+            font-size: 0.7rem;
+        }
+
+        #url-select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border-bright);
+            color: var(--text);
+            padding: 9px 32px 9px 12px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            outline: none;
+            appearance: none;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        #url-select:focus { border-color: var(--accent); }
+
+        #analytics-msg {
+            font-size: 0.72rem;
+            margin-bottom: 16px;
+            min-height: 18px;
+            color: var(--text-muted);
+        }
+        #analytics-msg.error { color: var(--red); }
+
+        .chart-container {
+            position: relative;
+            max-width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 20px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border-bright); }
+
+        /* Animation */
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .page-wrapper > * {
+            animation: fadeSlideIn 0.4s ease both;
+        }
+        .page-wrapper > *:nth-child(2) { animation-delay: 0.05s; }
+        .page-wrapper > *:nth-child(3) { animation-delay: 0.1s; }
+        .page-wrapper > *:nth-child(4) { animation-delay: 0.15s; }
+
+        @media (max-width: 600px) {
+            .url-table td:first-child { max-width: 140px; }
+            .analytics-controls { flex-direction: column; align-items: stretch; }
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+        <h4 class="logo-tag">URL Shortener</h4>
+
+    <!-- Shorten form -->
+    <section class="shorten-section">
+        <form id="shortenUrl-form" action="/shorten" method="POST">
+            <div class="input-row">
+                <input
+                    id="fullUrl-input"
+                    type="url"
+                    name="fullUrl"
+                    placeholder="https://your-very-long-url-goes-here.com/path/to/something"
+                    required
+                >
+                <button type="submit" class="btn btn-primary">Shorten</button>
+            </div>
+        </form>
+        <div id="message"></div>
+    </section>
+
+    <!-- URLs table -->
+    <section class="urls-section">
+        <div class="section-label">Links</div>
+        <table class="url-table" id="urlTable">
+            <thead>
+                <tr>
+                    <th>Original URL</th>
+                    <th>Short</th>
+                    <th>Clicks</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <% if (shortUrls && shortUrls.length > 0) { %>
+                    <% shortUrls.forEach(function(url) { %>
+                        <tr>
+                            <td>
+                                <a href="<%= url.fullUrl %>" target="_blank" rel="noopener noreferrer">
+                                    <%= url.fullUrl %>
+                                </a>
+                            </td>
+                            <td>
+                                <a class="short-link" href="/<%= url.shortCode %>" target="_blank" rel="noopener noreferrer">
+                                    /<%= url.shortCode %>
+                                </a>
+                            </td>
+                            <td><span class="click-badge"><%= url.clicks %></span></td>
+                            <td>
+                                <button
+                                    class="btn btn-ghost delete-btn"
+                                    data-id="<%= url._id %>"
+                                    style="color: var(--red); border-color: var(--red);"
+                                >
+                                    Delete
+                                </button>
+                            </td>                            
+                        </tr>
+                    <% }); %>
+                <% } else { %>
+                    <tr id="no-urls-row" class="empty-row">
+                        <td colspan="3">No links yet — shorten your first URL above</td>
+                    </tr>
+                <% } %>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Analytics -->
+    <section class="analytics-section">
+        <div class="section-label" style="margin-bottom: 20px;">Analytics</div>
+
+        <div class="analytics-controls">
+            <div class="select-wrapper">
+                <select id="url-select">
+                    <% if (shortUrls && shortUrls.length > 0) { %>
+                        <% shortUrls.forEach(function(url) { %>
+                            <option value="<%= url.shortCode %>">
+                                /<%= url.shortCode %> — <%= url.fullUrl %>
+                            </option>
+                        <% }); %>
+                    <% } else { %>
+                        <option value="">No URLs available</option>
+                    <% } %>
+                </select>
+            </div>
+            <button id="refresh-urls" class="btn btn-ghost">↻ Refresh URLs</button>
+            <button id="refresh-chart" class="btn btn-ghost">↻ Refresh Chart</button>
+        </div>
+
+        <p id="analytics-msg"></p>
+
+        <div class="chart-container">
+            <canvas id="clickChart"></canvas>
+        </div>
+    </section>
+
+</div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+        document.addEventListener("DOMContentLoaded", () => {
+        const tbody = document.getElementById("table-body");
+    
+        if (tbody) {
+            tbody.addEventListener("click", async (e) => {
+                if (e.target.classList.contains("delete-btn")) {
+                    const urlId = e.target.getAttribute("data-id");
+    
+                    if (!urlId) return;
+    
+                    if (!confirm("Are you sure you want to delete this URL?")) {
+                        return;
+                    }
+    
+                    try {
+                        const response = await fetch(`/api/urls/${urlId}`, {
+                            method: "DELETE",
+                        });
+    
+                        if (response.ok) {
+                            // Remove the row from the table
+                            const row = e.target.closest("tr");
+                            if (row) row.remove();
+    
+                            // Show success message
+                            showMessage("URL deleted successfully", "success");
+                        } else {
+                            const errorData = await response.json();
+                            showMessage(errorData.error || "Failed to delete URL", "error");
+                        }
+                    } catch (err) {
+                        showMessage("Failed to connect to the server.", "error");
+                    }
+                }
+            });
+        }
+
+           document.addEventListener("DOMContentLoaded", () => {
+        const urlTable = document.getElementById("urlTable");
+    
+        if (urlTable) {
+            $(urlTable).DataTable({
+                paging: true,
+                searching: true,
+                info: false,
+                lengthChange: false,
+                pageLength: 5,
+            });
+        }
+    });
+    });
+
+    
+    (function () {
+        const form = document.getElementById("shortenUrl-form");
+        const input = document.getElementById("fullUrl-input");
+        const tbody = document.getElementById("table-body");
+        const messageEl = document.getElementById("message");
+        const submitBtn = form ? form.querySelector("button[type='submit']") : null;
+
+        const refreshUrlsBtn = document.getElementById("refresh-urls");
+        const urlSelect = document.getElementById("url-select");
+        const refreshChartBtn = document.getElementById("refresh-chart");
+        const analyticsMsg = document.getElementById("analytics-msg");
+        const chartCanvas = document.getElementById("clickChart");
+
+        let cooldown = 0;
+        let cooldownInterval = null;
+        let chartInstance = null;
+
+        function showMessage(text, type) {
+            messageEl.textContent = text;
+            messageEl.className = 'visible ' + type;
+        }
+
+        function updateCooldownUI() {
+            if (!input || !submitBtn) return;
+            if (cooldown > 0) {
+                input.disabled = true;
+                submitBtn.disabled = true;
+                submitBtn.textContent = "Wait (" + cooldown + "s)";
+            } else {
+                input.disabled = false;
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Shorten";
+            }
+        }
+
+        function startCooldown(seconds) {
+            cooldown = seconds;
+            updateCooldownUI();
+            if (cooldownInterval) clearInterval(cooldownInterval);
+            cooldownInterval = setInterval(function () {
+                cooldown -= 1;
+                if (cooldown <= 0) { cooldown = 0; clearInterval(cooldownInterval); }
+                updateCooldownUI();
+            }, 1000);
+        }
+
+        if (form && input && tbody && submitBtn) {
+            form.addEventListener("submit", async function (e) {
+                e.preventDefault();
+                if (cooldown > 0) return;
+                messageEl.className = '';
+                messageEl.textContent = '';
+
+                const fullUrl = input.value.trim();
+                if (!fullUrl) return;
+
+                try {
+                    const response = await fetch("/shorten", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ originalUrl: fullUrl }),
+                    });
+
+                    let data = {};
+                    try { data = await response.json(); } catch (e) {}
+
+                    if (response.status === 429) {
+                        const seconds = data.retry_after_seconds || 60;
+                        startCooldown(seconds);
+                        showMessage("Rate limited. Wait " + seconds + "s before retrying.", "error");
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        showMessage(data.error || "An error occurred.", "error");
+                        return;
+                    }
+
+                    const placeholder = document.getElementById("no-urls-row");
+                    if (placeholder) placeholder.remove();
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><a href="${data.fullUrl}" target="_blank" rel="noopener noreferrer">${data.fullUrl}</a></td>
+                        <td><a class="short-link" href="/${data.shortCode}" target="_blank" rel="noopener noreferrer">/${data.shortCode}</a></td>
+                        <td><span class="click-badge">${data.clicks}</span></td>
+                    `;
+                    tr.style.animation = 'fadeSlideIn 0.3s ease both';
+                    tbody.appendChild(tr);
+                    input.value = "";
+                    showMessage("↗ Shortened successfully", "success");
+                } catch (err) {
+                    showMessage("Failed to connect to the server.", "error");
+                }
+            });
+        }
+
+        async function fetchUrls() {
+            if (!urlSelect) return;
+            analyticsMsg.textContent = "";
+            refreshUrlsBtn.disabled = true;
+            refreshUrlsBtn.textContent = "↻ Refreshing...";
+            try {
+                const resp = await fetch("/api/urls");
+                let data = [];
+                try { data = await resp.json(); } catch (e) {}
+                if (!resp.ok) throw new Error((data && data.error) || "Failed");
+
+                urlSelect.innerHTML = "";
+                if (data.length === 0) {
+                    const opt = document.createElement("option");
+                    opt.value = ""; opt.textContent = "No URLs available";
+                    urlSelect.appendChild(opt);
+                } else {
+                    data.forEach(function (u) {
+                        const opt = document.createElement("option");
+                        opt.value = u.shortCode;
+                        opt.textContent = "/" + u.shortCode + " — " + u.fullUrl;
+                        urlSelect.appendChild(opt);
+                    });
+                }
+            } catch (err) {
+                analyticsMsg.textContent = err.message || "Failed to fetch URLs.";
+                analyticsMsg.className = 'error';
+            } finally {
+                refreshUrlsBtn.disabled = false;
+                refreshUrlsBtn.textContent = "↻ Refresh URLs";
+            }
+        }
+
+        async function fetchAnalytics() {
+            if (!urlSelect || !chartCanvas) return;
+            analyticsMsg.textContent = "";
+            analyticsMsg.className = '';
+            const shortCode = urlSelect.value;
+            if (!shortCode) {
+                analyticsMsg.textContent = "Select a URL to view click analytics.";
+                return;
+            }
+            if (refreshChartBtn) {
+                refreshChartBtn.disabled = true;
+                refreshChartBtn.textContent = "↻ Loading...";
+            }
+            try {
+                const resp = await fetch("/api/urls/" + encodeURIComponent(shortCode) + "/analytics");
+                let data = {};
+                try { data = await resp.json(); } catch (e) {}
+                if (!resp.ok) throw new Error((data && data.error) || "Failed");
+
+                const labels = data.labels || [];
+                const counts = data.counts || [];
+
+                Chart.defaults.color = '#8a6f52';
+                Chart.defaults.borderColor = '#e4d9c8';
+                Chart.defaults.font.family = "'DM Mono', monospace";
+                Chart.defaults.font.size = 11;
+
+                if (chartInstance) chartInstance.destroy();
+                chartInstance = new Chart(chartCanvas.getContext("2d"), {
+                    type: "line",
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: "Clicks",
+                            data: counts,
+                            borderColor: "#c45c1a",
+                            backgroundColor: "rgba(196,92,26,0.07)",
+                            borderWidth: 2,
+                            pointBackgroundColor: "#c45c1a",
+                            pointBorderColor: "#ffffff",
+                            pointBorderWidth: 2,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            tension: 0.3,
+                            fill: true,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            title: {
+                                display: true,
+                                text: "Clicks Analytics — Last 7 days",
+                                color: '#8a6f52',
+                                font: { size: 10, family: "'DM Mono', monospace" },
+                                letterSpacing: '0.15em',
+                                padding: { bottom: 16 }
+                            },
+                            tooltip: {
+                                backgroundColor: '#ffffff',
+                                borderColor: '#e4d9c8',
+                                borderWidth: 1,
+                                titleColor: '#c45c1a',
+                                bodyColor: '#2d1f0f',
+                                padding: 10,
+                                callbacks: {
+                                    label: ctx => " " + ctx.parsed.y + " clicks"
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: '#f0e8d8' },
+                                ticks: { color: '#8a6f52' }
+                            },
+                            y: {
+                                grid: { color: '#f0e8d8' },
+                                ticks: { color: '#8a6f52', stepSize: 1 },
+                                beginAtZero: true,
+                            }
+                        }
+                    }
+                });
+            } catch (err) {
+                analyticsMsg.textContent = err.message || "Failed to load analytics.";
+                analyticsMsg.className = 'error';
+            } finally {
+                if (refreshChartBtn) {
+                    refreshChartBtn.disabled = false;
+                    refreshChartBtn.textContent = "↻ Refresh Chart";
+                }
+            }
+        }
+
+        if (refreshUrlsBtn) {
+            refreshUrlsBtn.addEventListener("click", fetchUrls);
+        }
+        if (refreshChartBtn){
+            refreshChartBtn.addEventListener("click", fetchAnalytics);
+        }
+        if (urlSelect){
+            urlSelect.addEventListener("change", fetchAnalytics);
+        }
+        if (urlSelect && urlSelect.value) {
+            fetchAnalytics();
+        }
+    })();
+</script>
+</body>
+</html>
